@@ -1,41 +1,51 @@
 document.addEventListener('DOMContentLoaded', () => {
-  // Hanapin ang inquiry form sa pahina
-  const inquiryForm = document.querySelector('#contactForm') || document.querySelector('form');
+  const form = document.getElementById('contactForm');
+  const submitBtn = document.getElementById('contactSubmitBtn');
+  const statusMsg = document.getElementById('contactStatusMsg');
 
-  if (inquiryForm) {
-    inquiryForm.addEventListener('submit', async (event) => {
-      event.preventDefault(); // Iwasan ang pag-reload ng page
+  if (!form) return;
 
-      const submitBtn = inquiryForm.querySelector('button[type="submit"]') || inquiryForm.querySelector('.btn-primary');
-      const originalText = submitBtn ? submitBtn.textContent : '';
-      if (submitBtn) submitBtn.textContent = 'SENDING...';
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
 
-      // Kunin ang mga input values mula sa form
-      const formData = new FormData(inquiryForm);
-      const data = Object.fromEntries(formData.entries());
+    const name = document.getElementById('contactName').value;
+    const email = document.getElementById('contactEmail').value;
+    const message = document.getElementById('contactMessage').value;
 
-      try {
-        // Ipadala ang data sa iyong backend API na nakakonekta sa Turso DB
-        const response = await fetch('/api/send-inquiry', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(data)
-        });
+    submitBtn.disabled = true;
+    const originalBtnText = submitBtn.textContent;
+    submitBtn.textContent = 'Sending...';
+    if (statusMsg) statusMsg.textContent = '';
 
-        if (response.ok) {
-          alert('Salamat! matagumpay na naisumite ang iyong inquiry.');
-          inquiryForm.reset();
+    try {
+      const response = await fetch('/api/send-inquiry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, message })
+      });
+
+      if (response.ok) {
+        if (statusMsg) {
+          statusMsg.style.color = 'green';
+          statusMsg.textContent = 'Salamat! Naisumite na ang iyong inquiry.';
         } else {
-          throw new Error('Nagkaroon ng problema sa pag-save sa database.');
+          alert('Salamat! Naisumite na ang iyong inquiry.');
         }
-      } catch (error) {
-        console.error('Error submitting inquiry:', error);
-        alert('Nagkaroon ng error. Paki-subok ulit mamaya.');
-      } finally {
-        if (submitBtn) submitBtn.textContent = originalText;
+        form.reset();
+      } else {
+        throw new Error('Failed to save data');
       }
-    });
-  }
+    } catch (error) {
+      console.error('Error:', error);
+      if (statusMsg) {
+        statusMsg.style.color = 'red';
+        statusMsg.textContent = 'Nagkaroon ng error. Paki-subok ulit.';
+      } else {
+        alert('Nagkaroon ng error. Paki-subok ulit.');
+      }
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = originalBtnText;
+    }
+  });
 });
