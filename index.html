@@ -4846,9 +4846,156 @@ if (matched) {
           if (dict[key]) {
             el.textContent = dict[key];
           }
+
         });
       });
     });
+    // Configuration para sa Turso Database
+const TURSO_DB_URL = "https://graquins-db-nathaneil04.turso.io";
+const TURSO_AUTH_TOKEN = "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODg1ODc0MTQsImlkIjoiMDFhMDZmM2UtN2IwMS03MWNmLWIwMzktODE5MjY1MTZmZjhmIiwia2lkIjoic1IxTmFxX1ZNOTFSUVJBWlR5SVByXzV1M1Z1SmJsMWxsMVd1bkxYVUFVWSIsInJpZCI6IjliMWJmOTU0LTI5OTAtNGZjNi05Mjg3LWIxOGQxMTUwMTM0MiJ9.TnzGV0QQdNzj_cyhqOodbkzsxpVtMuNafn1UPLiPJBJRo2d0XLnLOTuIwS4Fs2ZTB-7u8fO2uFGVdHU3WB1hAQ";
+
+// Function para sa pagpapadala ng SQL Query sa Turso HTTP API
+async function executeTursoQuery(sql, args = []) {
+  const response = await fetch(`${TURSO_DB_URL}/v2/pipeline`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${TURSO_AUTH_TOKEN}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      requests: [
+        {
+          type: "execute",
+          stmt: {
+            sql: sql,
+            args: args.map(arg => {
+              if (typeof arg === "number") return { type: "float", value: arg };
+              return { type: "text", value: String(arg) };
+            })
+          }
+        },
+        { type: "close" }
+      ]
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Turso Error: ${errorText}`);
+  }
+
+  return await response.json();
+}
+
+// --------------------------------------------------
+// 1. LEDGER FORM SUBMISSION
+// --------------------------------------------------
+const ledgerForm = document.getElementById('ledgerForm');
+ledgerForm?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  
+  const ldgDate = document.getElementById('ldgDate')?.value;
+  const ldgDesc = document.getElementById('ldgDesc')?.value;
+  const ldgType = document.getElementById('ldgType')?.value;
+  const ldgAmount = parseFloat(document.getElementById('ldgAmount')?.value || 0);
+
+  try {
+    const sql = `INSERT INTO ledger_entries (date, description, type, amount) VALUES (?, ?, ?, ?)`;
+    await executeTursoQuery(sql, [ldgDate, ldgDesc, ldgType, ldgAmount]);
+
+    alert('Mataagumpay na na-save ang bagong transaksyon sa Turso DB!');
+    
+    // I-refresh ang ledger list sa UI kung kinakailangan
+    if (typeof renderLedger === 'function') {
+      renderLedger();
+    }
+    ledgerForm.reset();
+  } catch (err) {
+    console.error('Nagka-error sa pag-save sa Ledger:', err);
+    alert('Nagkaroon ng problema sa pag-save ng transaksyon.');
+  }
+});
+
+// --------------------------------------------------
+// 2. PROJECT INQUIRY FORM SUBMISSION
+// --------------------------------------------------
+const projectForm = document.getElementById('projectForm');
+const projStatusMsg = document.getElementById('projStatusMsg');
+
+projectForm?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  
+  const projName = document.getElementById('projName')?.value;
+  const projEmail = document.getElementById('projEmail')?.value;
+  const projTypology = document.getElementById('projTypology')?.value;
+  const projLocation = document.getElementById('projLocation')?.value;
+  
+  // Kunin ang Napiling Budget Option Card
+  const selectedBudgetCard = document.querySelector('#budgetOptions .radio-card.selected');
+  const projBudget = selectedBudgetCard ? selectedBudgetCard.dataset.value || selectedBudgetCard.textContent.trim() : '';
+  
+  const projBrief = document.getElementById('projBrief')?.value;
+
+  try {
+    if (projStatusMsg) {
+      projStatusMsg.textContent = 'Ipinapadala ang datos sa server...';
+      projStatusMsg.className = 'status-msg';
+    }
+
+    const sql = `INSERT INTO project_inquiries (full_name, email, typology, location, budget_range, brief) VALUES (?, ?, ?, ?, ?, ?)`;
+    await executeTursoQuery(sql, [projName, projEmail, projTypology, projLocation, projBudget, projBrief]);
+
+    if (projStatusMsg) {
+      projStatusMsg.textContent = '✓ Ang iyong Project Brief ay matagumpay na naisave at naipadala sa Turso Database!';
+      projStatusMsg.className = 'status-msg success';
+    }
+    projectForm.reset();
+  } catch (err) {
+    console.error('Nagka-error sa Project Submission:', err);
+    if (projStatusMsg) {
+      projStatusMsg.textContent = '✕ Hindi maipadala ang form. Pakisubukang muli.';
+      projStatusMsg.className = 'status-msg error';
+    }
+  }
+});
+
+// --------------------------------------------------
+// 3. CONTACT FORM SUBMISSION
+// --------------------------------------------------
+const contactForm = document.getElementById('contactForm');
+const contactStatusMsg = document.getElementById('contactStatusMsg');
+
+contactForm?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  
+  const contactName = document.getElementById('contactName')?.value;
+  const contactEmail = document.getElementById('contactEmail')?.value;
+  const contactSubject = document.getElementById('contactSubject')?.value;
+  const contactMessage = document.getElementById('contactMessage')?.value;
+
+  try {
+    if (contactStatusMsg) {
+      contactStatusMsg.textContent = 'Ipinapadala ang mensahe...';
+      contactStatusMsg.className = 'status-msg';
+    }
+
+    const sql = `INSERT INTO contact_messages (full_name, email, subject, message) VALUES (?, ?, ?, ?)`;
+    await executeTursoQuery(sql, [contactName, contactEmail, contactSubject, contactMessage]);
+
+    if (contactStatusMsg) {
+      contactStatusMsg.textContent = '✓ Ang iyong mensahe ay matagumpay na na-save sa Turso Database!';
+      contactStatusMsg.className = 'status-msg success';
+    }
+    contactForm.reset();
+  } catch (err) {
+    console.error('Nagka-error sa Contact Submission:', err);
+    if (contactStatusMsg) {
+      contactStatusMsg.textContent = '✕ Hindi maipadala ang mensahe. Pakisubukang muli.';
+      contactStatusMsg.className = 'status-msg error';
+    }
+  }
+});
+
   </script>
 </body>
 </html>
